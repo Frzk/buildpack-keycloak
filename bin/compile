@@ -14,7 +14,7 @@ readonly ENV_DIR="${3:-}"
 readonly BASE_DIR="$( cd -P "$( dirname "${0}" )" && pwd )"
 readonly BUILDPACK_DIR="$( readlink -f "${BASE_DIR}/.." )"
 
-
+readonly tmp_dir="/tmp"
 
 source "${BUILDPACK_DIR}/bin/fn.sh"
 
