@@ -18,8 +18,24 @@ readonly BUILDPACK_DIR="$( readlink -f "${BASE_DIR}/.." )"
 
 source "${BUILDPACK_DIR}/bin/fn.sh"
 
-start "Installing Keycloak"
 
+start "Installing JVM"
+
+readonly jvm_version="${JAVA_VERSION}:-17}"
+readonly jvm_url="https://buildpacks-repository.s3.eu-central-1.amazonaws.com/jvm-common.tar.xz"
+
+mkdir -p /tmp/jvm-common
+curl --silent --location "${jvm_url}" \
+    | tar xJm -C /tmp/jvm-common --strip-components=1
+
+source /tmp/jvm-common/bin/util
+source /tmp/jvm-common/bin/java
+
+install_java "${BUILD_DIR}" "${jvm_version}"
+
+
+
+start "Installing Keycloak"
 
 readonly keycloak_db_engine="${KC_DB:-postgres}"
 
@@ -37,6 +53,8 @@ if [ ! -n "${keycloak_version}" ]; then
 else
     info "Using Keycloak version ${keycloak_version}."
 fi
+
+success
 
 
 # Keycloak dir
