@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# usage: bin/compile <build_dir> <cache_dir> <env_dir>
+
+set -eo pipefail
+
+if [ -n "${BUILDPACK_DEBUG}" ]; then
+    set -x
+fi
+
+readonly BUILD_DIR="${1:-}"
+readonly CACHE_DIR="${2:-}"
+readonly ENV_DIR="${3:-}"
+
+readonly BASE_DIR="$( cd -P "$( dirname "${0}" )" && pwd )"
+readonly BUILDPACK_DIR="$( readlink -f "${BASE_DIR}/.." )"
+
+
+
+source "${BUILDPACK_DIR}/bin/fn.sh"
+
+start "Installing Keycloak"
+
+
+readonly keycloak_db_engine="${KC_DB:-postgres}"
+
+# Version
+keycloak_version="${KEYCLOAK_VERSION:-latest}"
+
+if [[ "${keycloak_version}" == "latest" ]]; then
+    keycloak_version="$( retrieve_github_latest_release "keycloak" "keycloak" )"
+fi
+
+if [ ! -n "${keycloak_version}" ]; then
+    err "Could not retrieve Keycloak version."
+    info "You can specify the version by using the KEYCLOAK_VERSION environment variable."
+    failure
+else
+    info "Using Keycloak version ${keycloak_version}."
+fi
+
+
+# Keycloak dir
+readonly keycloak_dir="${BUILD_DIR}/keycloak"
+
+readonly dist="keycloak-${keycloak_version}.tar.gz"
+
+readonly cache_file="${CACHE_DIR}/${dist}"
+
+readonly package_url="https://github.com/keycloak/keycloak/releases/download/${keycloak_version}/${dist}"
+readonly checksum_url="${package_url}.sha1"
+
+if [ -d "${keycloak_dir}" ]; then
+    err "Keycloak is already installed in ${keycloak_dir}."
+    failure
+else
+    if [ -f "${cache_file}" ]
+    then
+        info "Found file in cache."
+        do_start "Checking validity" \
+            && check_cached_file "${cache_file}" "${checksum_url}" \
+            && do_finish \
+            || ( do_fail \
+                && err "File in cache is invalid, it has been removed." )
+    fi
+
+    if [ ! -f "${cache_file}" ]
+    then
+        do_start "Downloading" \
+            && download "${package_url}" "${checksum_url}" "${cache_file}" \
+                && do_finish \
+                || ( do_fail \
+                    && err "An error occured while downloading. Aborting." \
+                    && failure )
+    fi
+
+    do_start "Extracting" \
+        && tar --extract --file="${cache_file}" --directory="${tmp_dir}" \
+            2>/dev/null \
+        && do_finish \
+        || ( do_fail \
+            && err "An error occured while extracting the archive. Aborting." \
+            && failure )
+
+    do_start "Installing" \
+        && mv "${tmp_dir}/keycloak-${keycloak_version}" "${keycloak_dir}" \
+            2>/dev/null \
+        && do_finish \
+        || ( do_fail \
+            && err "An error occured while installing the files. Aborting." \
+            && failure )
+fi
+
+success
+
+
+# start "Installing Keycloak providers"
+# success
+
+# start "Installing Keycloak templates"
+# success
+
+
+start "Building optimized Keycloak image"
+
+do_start "Setting DB engine to ${keycloak_db_engine}" \
+    && "${keycloak_dir}"/bin/kc.sh build --db="${keycloak_db_engine}" \
+        2>/dev/null \
+    && do_finish \
+    || ( do_fail && failure )
+
+success
+
+
+#start "Cleaning up"
+
+#do_start "Removing temporary files" \
+#    && rm -Rf "${tmp_dir}" \
+#    && do_finish \
+#    || ( do_fail && failure )
+
+#success
