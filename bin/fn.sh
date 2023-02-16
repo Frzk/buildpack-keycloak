@@ -82,28 +82,28 @@ list_env_vars() {
 
 check_cached_file() {
     local rc
-    local cached_file
-    local checksum_url
+    local cached
+    local hash_url
     local ref
     local checksum
 
     rc=1
-    cached_file="${1}"
-    checksum_url="${2}"
+    cached="${1}"
+    hash_url="${2}"
 
-    checksum="$( shasum "${cached_file}" | cut -d \  -f 1 )"
+    checksum="$( shasum "${cached}" | cut -d \  -f 1 )"
 
-    curl --silent --location "${checksum_url}" --output "${cached_file}.sha1"
+    curl --silent --location "${hash_url}" --output "${cached}.sha1"
 
-    if [ -f "${cached_file}.sha1" ]
+    if [ -f "${cached}.sha1" ]
     then
-        ref="$( cat "${cached_file}.sha1" )"
+        ref="$( cat "${cached}.sha1" )"
 
         if [ "${checksum}" == "${ref}" ]
         then
             rc=0
         else
-            rm -f "${cached_file}"
+            rm -f "${cached}"
         fi
     fi
 
@@ -134,16 +134,16 @@ retrieve_github_latest_release() {
 download() {
     local rc
     local url
-    local checksum_url
-    local cache_file
+    local hash_url
+    local cached
 
     rc=1
     url="${1}"
-    checksum_url="${2}"
-    cache_file="${3}"
+    hash_url="${2}"
+    cached="${3}"
 
-    curl --silent --location "${url}" --output "${cache_file}" \
-        && check_cached_file "${cache_file}" "${checksum_url}" \
+    curl --silent --location "${url}" --output "${cached}" \
+        && check_cached_file "${cached}" "${hash_url}" \
         && rc=0
 
     return "${rc}"
