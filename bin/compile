@@ -33,6 +33,7 @@ source /tmp/jvm-common/bin/java
 
 install_java "${BUILD_DIR}" "${jvm_version}"
 
+success
 
 
 start "Installing Keycloak"
@@ -53,9 +54,6 @@ if [ ! -n "${keycloak_version}" ]; then
 else
     info "Using Keycloak version ${keycloak_version}."
 fi
-
-success
-
 
 # Keycloak dir
 readonly keycloak_dir="${BUILD_DIR}/keycloak"
@@ -129,11 +127,11 @@ do_start "Setting DB engine to ${keycloak_db_engine}" \
 success
 
 
-#start "Cleaning up"
+start "Cleaning up"
 
-#do_start "Removing temporary files" \
-#    && rm -Rf "${tmp_dir}" \
-#    && do_finish \
-#    || ( do_fail && failure )
+do_start "Removing temporary files" \
+    && rm -Rf "${tmp_dir}" \
+    && do_finish \
+    || ( do_fail && failure )
 
-#success
+success
