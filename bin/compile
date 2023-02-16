@@ -14,7 +14,7 @@ readonly ENV_DIR="${3:-}"
 readonly BASE_DIR="$( cd -P "$( dirname "${0}" )" && pwd )"
 readonly BUILDPACK_DIR="$( readlink -f "${BASE_DIR}/.." )"
 
-readonly tmp_dir="/tmp"
+readonly tmp_dir="/tmp/keycloak"
 
 source "${BUILDPACK_DIR}/bin/fn.sh"
 
@@ -64,6 +64,8 @@ readonly cache_file="${CACHE_DIR}/${dist}"
 
 readonly package_url="https://github.com/keycloak/keycloak/releases/download/${keycloak_version}/${dist}"
 readonly checksum_url="${package_url}.sha1"
+
+mkdir -p "${tmp_dir}"
 
 if [ -d "${keycloak_dir}" ]; then
     err "Keycloak is already installed in ${keycloak_dir}."
