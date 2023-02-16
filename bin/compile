@@ -21,7 +21,7 @@ source "${BUILDPACK_DIR}/bin/fn.sh"
 
 start "Installing JVM"
 
-readonly jvm_version="${JAVA_VERSION}:-17}"
+readonly jvm_version="${JAVA_VERSION:-17}"
 readonly jvm_url="https://buildpacks-repository.s3.eu-central-1.amazonaws.com/jvm-common.tar.xz"
 
 mkdir -p /tmp/jvm-common
