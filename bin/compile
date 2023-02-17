@@ -118,6 +118,22 @@ success
 # success
 
 
+start "Building environment"
+
+readonly host="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "@" -f2 | cut -d ":" -f1 )"
+readonly port="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d ":" -f4 | cut -d "/" -f1 )"
+readonly username="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "/" -f3 | cut -d ":" -f1 )"
+readonly password="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "@" -f1 | cut -d ":" -f3 )"
+readonly database="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "?" -f1 | cut -d "/" -f4 )"
+
+KC_DB="postgres"
+KC_DB_USERNAME="${username}"
+KC_DB_PASSWORD="${password}"
+KC_DB_URL="jdbc:postgresql://${host}:${port}/${database}"
+
+success
+
+
 start "Building optimized Keycloak image"
 
 do_start "Setting DB engine to ${keycloak_db_engine}" \
