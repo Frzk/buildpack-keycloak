@@ -160,13 +160,13 @@ do_start "Removing temporary files" \
 success
 
 
-start "Setting environment"
+#start "Setting environment"
 
-cat << EOF > "${BUILD_DIR}/.profile.d/050-keycloak.sh"
-export KC_DB="${KC_DB}"
-export KC_DB_USERNAME="${KC_DB_USERNAME}"
-export KC_DB_PASSWORD="${KC_DB_PASSWORD}"
-export KC_DB_URL="${KC_DB_URL}"
-EOF
+#cat << EOF > "${BUILD_DIR}/.profile.d/050-keycloak.sh"
+#export KC_DB="${KC_DB}"
+#export KC_DB_USERNAME="${KC_DB_USERNAME}"
+#export KC_DB_PASSWORD="${KC_DB_PASSWORD}"
+#export KC_DB_URL="${KC_DB_URL}"
+#EOF
 
-success
+#success
