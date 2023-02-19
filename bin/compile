@@ -137,7 +137,11 @@ success
 start "Building optimized Keycloak image"
 
 do_start "Setting DB engine to ${keycloak_db_engine}" \
-    && "${keycloak_dir}"/bin/kc.sh build --db="${keycloak_db_engine}" \
+    && "${keycloak_dir}"/bin/kc.sh build \
+        --db="${keycloak_db_engine}" \
+        --db-url="${KC_DB_URL}" \
+        --db-username="${KC_DB_USERNAME}" \
+        --db-password="${KC_DB_PASSWORD}" \
         2>/dev/null \
     && do_finish \
     || ( do_fail && failure )
