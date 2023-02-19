@@ -131,6 +131,11 @@ KC_DB_USERNAME="${username}"
 KC_DB_PASSWORD="${password}"
 KC_DB_URL="jdbc:postgresql://${host}:${port}/${database}"
 
+export KC_DB
+export KC_DB_USERNAME
+export KC_DB_PASSWORD
+export KC_DB_URL
+
 success
 
 
@@ -153,3 +158,15 @@ do_start "Removing temporary files" \
     || ( do_fail && failure )
 
 success
+
+
+#start "Setting environment"
+
+#cat << EOF >> ".profile.d/050-keycloak.sh"
+#export KC_DB="${KC_DB}"
+#export KC_DB_USERNAME="${KC_DB_USERNAME}"
+#export KC_DB_PASSWORD="${KC_DB_PASSWORD}"
+#export KC_DB_URL="${KC_DB_URL}"
+#EOF
+
+#success
