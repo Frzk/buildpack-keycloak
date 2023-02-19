@@ -125,23 +125,24 @@ readonly port="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d ":" -f4 | cut -d "/
 readonly username="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "/" -f3 | cut -d ":" -f1 )"
 readonly password="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "@" -f1 | cut -d ":" -f3 )"
 readonly database="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "?" -f1 | cut -d "/" -f4 )"
+readonly db_url="jdbc:postgresql://${host}:${port}/${database}"
 
-KC_DB="postgres"
-KC_DB_USERNAME="${username}"
-KC_DB_PASSWORD="${password}"
-KC_DB_URL="jdbc:postgresql://${host}:${port}/${database}"
-
-export KC_DB
-export KC_DB_USERNAME
-export KC_DB_PASSWORD
-export KC_DB_URL
+cat << EOF > "${BUILD_DIR}/.profile.d/050-keycloak.sh"
+export KC_DB="${keycloak_db_engine}"
+export KC_DB_USERNAME="${username}"
+export KC_DB_PASSWORD="${password}"
+export KC_DB_URL="${db_url}"
+EOF
 
 success
 
 
 start "Building optimized Keycloak image"
 
-"${keycloak_dir}"/bin/kc.sh build --db="${KC_DB}" 2>/dev/null \
+"${keycloak_dir}"/bin/kc.sh build \
+    --db="${keycloak_db_engine}" \
+    --transaction-xa-enabled="true" \
+    2>/dev/null \
     && do_finish \
     || ( do_fail && failure )
 
@@ -156,15 +157,3 @@ do_start "Removing temporary files" \
     || ( do_fail && failure )
 
 success
-
-
-#start "Setting environment"
-
-#cat << EOF > "${BUILD_DIR}/.profile.d/050-keycloak.sh"
-#export KC_DB="${KC_DB}"
-#export KC_DB_USERNAME="${KC_DB_USERNAME}"
-#export KC_DB_PASSWORD="${KC_DB_PASSWORD}"
-#export KC_DB_URL="${KC_DB_URL}"
-#EOF
-
-#success
