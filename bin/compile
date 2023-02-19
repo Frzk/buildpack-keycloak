@@ -134,19 +134,6 @@ KC_DB_URL="jdbc:postgresql://${host}:${port}/${database}"
 success
 
 
-start "Building Keycloak's configuration"
-
-cat << EOF >> "${keycloak_dir}/conf/keycloak.conf"
-db="${KC_DB}"
-db-username="${KC_DB_USERNAME}"
-db-password="${KC_DB_PASSWORD}"
-db-url="${KC_DB_URL}"
-
-health-enabled=true
-metrics-enabled=true
-EOF
-
-
 start "Building optimized Keycloak image"
 
 "${keycloak_dir}"/bin/kc.sh build --db="${KC_DB}" 2>/dev/null \
