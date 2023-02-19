@@ -140,6 +140,8 @@ start "Building optimized Keycloak image"
     && do_finish \
     || ( do_fail && failure )
 
+"${keycloak_dir}"/bin/kc.sh show-config
+
 success
 
 
