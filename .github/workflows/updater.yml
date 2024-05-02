@@ -1,0 +1,50 @@
+---
+name: Update Keycloak default version
+on:
+  workflow_dispatch:
+
+jobs:
+  version_update:
+    name: Get Keycloak latest version
+    runs-on: ubuntu-latest
+
+    steps:
+      - id: versioning
+        name: Get latest release version
+        uses: pozetroninc/github-action-get-latest-release@master
+        with:
+          repository: keycloak/keycloak
+          excludes: "prerelease, draft"
+
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Write version
+        run: echo "${{ steps.versioning.outputs.release }}" > VERSION
+
+      - id: pr
+        name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          branch: "auto/version_update"
+          delete-branch: true
+          title: "(auto) update Keycloak default version to ${{ steps.versioning.outputs.release }}"
+          body: |
+            This is an automated pull-request to update Keycloak default version to `${{ steps.versioning.outputs.release }}`.
+          labels: |
+            automated pr
+            versioning
+          commit-message: "auto(versioning): update default version to ${{ steps.versioning.outputs.release }}"
+          assignees: "${{ vars.AUTO_ASSIGNEES }}"
+          reviewers: "${{ vars.AUTO_REVIEWERS }}"
+          # committer: ${{ username }} <${{ email }}>
+          # author: ${{ username }} <${{ email }}>
+
+
+      - name: Configure Pull Request
+        if: steps.pr.outputs.pull-request-operation == 'created'
+        run: |
+          gh pr merge --squash --auto --delete-branch "${{ steps.pr.outputs.pull-request-number }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+...
