@@ -1,22 +1,33 @@
 #!/usr/bin/env bash
 # usage: bin/compile <build_dir> <cache_dir> <env_dir>
 
-set -eo pipefail
+set -o errexit
+set -o pipefail
 
 if [ -n "${BUILDPACK_DEBUG}" ]; then
-    set -x
+    set -o xtrace
 fi
 
-readonly BUILD_DIR="${1:-}"
-readonly CACHE_DIR="${2:-}"
-readonly ENV_DIR="${3:-}"
+build_dir="${1:-}"
+cache_dir="${2:-}"
+env_dir="${3:-}"
+base_dir="$( cd -P "$( dirname "${0}" )" && pwd )"
+buildpack_dir="$( readlink -f "${base_dir}/.." )"
+tmp_dir="$( mktemp --tmpdir="/tmp" --directory "keycloak-XXXX" )"
 
-readonly BASE_DIR="$( cd -P "$( dirname "${0}" )" && pwd )"
-readonly BUILDPACK_DIR="$( readlink -f "${BASE_DIR}/.." )"
+readonly build_dir
+readonly cache_dir
+readonly env_dir
+readonly base_dir
+readonly buildpack_dir
+readonly tmp_dir
 
-readonly tmp_dir="/tmp/keycloak"
 
-source "${BUILDPACK_DIR}/bin/fn.sh"
+
+source "${buildpack_dir}/bin/fn.sh"
+
+
+# * * *
 
 
 start "Installing JVM"
@@ -31,9 +42,12 @@ curl --silent --location "${jvm_url}" \
 source /tmp/jvm-common/bin/util
 source /tmp/jvm-common/bin/java
 
-install_java "${BUILD_DIR}" "${jvm_version}"
+install_java "${build_dir}" "${jvm_version}"
 
 success
+
+
+# * * *
 
 
 start "Installing Keycloak"
@@ -41,27 +55,20 @@ start "Installing Keycloak"
 readonly keycloak_db_engine="${KC_DB:-postgres}"
 
 # Version
-keycloak_version="${KEYCLOAK_VERSION:-latest}"
+keycloak_default_version="$( cat "${buildpack_dir}/VERSION" )"
+keycloak_version="${KEYCLOAK_VERSION:-"${keycloak_default_version}"}"
 
-if [[ "${keycloak_version}" == "latest" ]]; then
-    keycloak_version="$( retrieve_github_latest_release "keycloak" "keycloak" )"
-fi
-
-if [ ! -n "${keycloak_version}" ]; then
+if [ -z "${keycloak_version}" ]; then
     err "Could not retrieve Keycloak version."
-    info "You can specify the version by using the KEYCLOAK_VERSION environment variable."
+    info "Please use the KEYCLOAK_VERSION environment variable to specify the version to use."
     failure
 else
     info "Using Keycloak version ${keycloak_version}."
 fi
 
-# Keycloak dir
-readonly keycloak_dir="${BUILD_DIR}/keycloak"
-
+readonly keycloak_dir="${build_dir}/keycloak"
 readonly dist="keycloak-${keycloak_version}.tar.gz"
-
-readonly cache_file="${CACHE_DIR}/${dist}"
-
+readonly cache_file="${cache_dir}/${dist}"
 readonly package_url="https://github.com/keycloak/keycloak/releases/download/${keycloak_version}/${dist}"
 readonly checksum_url="${package_url}.sha1"
 
@@ -74,60 +81,98 @@ else
     if [ -f "${cache_file}" ]
     then
         info "Found file in cache."
-        do_start "Checking validity" \
-            && check_cached_file "${cache_file}" "${checksum_url}" \
-            && do_finish \
-            || ( do_fail \
-                && err "File in cache is invalid, it has been removed." )
+        do_start "Checking validity"
+
+        if check_cached_file "${cache_file}" "${checksum_url}"
+        then
+            do_finish
+        else
+            do_fail
+            err "File in cache is invalid, it has been removed."
+        fi
     fi
 
     if [ ! -f "${cache_file}" ]
     then
-        do_start "Downloading" \
-            && download "${package_url}" "${checksum_url}" "${cache_file}" \
-                && do_finish \
-                || ( do_fail \
-                    && err "An error occured while downloading. Aborting." \
-                    && failure )
+        do_start "Downloading"
+
+        if  download "${package_url}" "${checksum_url}" "${cache_file}"
+        then
+            do_finish
+        else
+            do_fail
+            err "An error occured while downloading. Aborting."
+            failure
+        fi
     fi
 
-    do_start "Extracting" \
-        && tar --extract --file="${cache_file}" --directory="${tmp_dir}" \
-            2>/dev/null \
-        && do_finish \
-        || ( do_fail \
-            && err "An error occured while extracting the archive. Aborting." \
-            && failure )
 
-    do_start "Installing" \
-        && mv "${tmp_dir}/keycloak-${keycloak_version}" "${keycloak_dir}" \
-            2>/dev/null \
-        && do_finish \
-        || ( do_fail \
-            && err "An error occured while installing the files. Aborting." \
-            && failure )
+    do_start "Extracting"
+
+    if tar \
+        --extract \
+        --file="${cache_file}" \
+        --directory="${tmp_dir}" \
+        2>/dev/null
+    then
+        do_finish
+    else
+        do_fail
+        err "An error occured while extracting the archive. Aborting."
+        failure
+    fi
+
+    do_start "Installing"
+
+    if mv "${tmp_dir}/keycloak-${keycloak_version}" "${keycloak_dir}" \
+        2>/dev/null
+    then
+        do_finish
+    else
+        do_fail
+        err "An error occured while installing the files. Aborting."
+        failure
+    fi
 fi
 
 success
 
 
+# * * *
+
+
 # start "Installing Keycloak providers"
 # success
+
+
+# * * *
+
 
 # start "Installing Keycloak templates"
 # success
 
 
+# * * *
+
+
 start "Building environment"
 
-readonly host="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "@" -f2 | cut -d ":" -f1 )"
-readonly port="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d ":" -f4 | cut -d "/" -f1 )"
-readonly username="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "/" -f3 | cut -d ":" -f1 )"
-readonly password="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "@" -f1 | cut -d ":" -f3 )"
-readonly database="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "?" -f1 | cut -d "/" -f4 )"
-readonly db_url="jdbc:postgresql://${host}:${port}/${database}"
 
-cat << EOF > "${BUILD_DIR}/.profile.d/050-keycloak.sh"
+host="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "@" -f2 | cut -d ":" -f1 )"
+port="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d ":" -f4 | cut -d "/" -f1 )"
+username="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "/" -f3 | cut -d ":" -f1 )"
+password="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "@" -f1 | cut -d ":" -f3 )"
+database="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "?" -f1 | cut -d "/" -f4 )"
+db_url="jdbc:postgresql://${host}:${port}/${database}"
+
+readonly host
+readonly port
+readonly username
+readonly password
+readonly database
+readonly db_url
+
+cat << EOF > "${build_dir}/.profile.d/050-keycloak.sh"
 export KC_DB="${keycloak_db_engine}"
 export KC_DB_USERNAME="${username}"
 export KC_DB_PASSWORD="${password}"
@@ -137,23 +182,38 @@ EOF
 success
 
 
+# * * *
+
+
 start "Building optimized Keycloak image"
 
-"${keycloak_dir}"/bin/kc.sh build \
+if "${keycloak_dir}"/bin/kc.sh build \
     --db="${keycloak_db_engine}" \
-    --transaction-xa-enabled="true" \
-    2>/dev/null \
-    && do_finish \
-    || ( do_fail && failure )
+    --transaction-xa-enabled="false" \
+    2>/dev/null
+then
+    do_finish
+else
+    do_fail
+    failure
+fi
 
 success
 
 
+# * * *
+
+
 start "Cleaning up"
 
-do_start "Removing temporary files" \
-    && rm -Rf "${tmp_dir}" \
-    && do_finish \
-    || ( do_fail && failure )
+do_start "Removing temporary files"
+
+if rm -Rf "${tmp_dir}"
+then
+    do_finish
+else
+    do_fail
+    failure
+fi
 
 success

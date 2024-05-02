@@ -110,27 +110,6 @@ check_cached_file() {
     return "${rc}"
 }
 
-retrieve_github_latest_release() {
-    local org
-    local repo
-    local base_url
-    local version
-
-    org="${1}"
-    repo="${2}"
-    base_url="https://api.github.com/repos/%s/%s/releases/latest"
-
-    printf -v url "${base_url}" "${org}" "${repo}"
-
-    version=$( curl --silent "${url}" \
-                | grep \
-                    --perl-regexp \
-                    --only-matching \
-                    '"tag_name": "\K.*?(?=")' )
-
-    echo "${version}"
-}
-
 download() {
     local rc
     local url
@@ -149,4 +128,3 @@ download() {
     return "${rc}"
 
 }
-
