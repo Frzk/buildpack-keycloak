@@ -24,6 +24,7 @@
     <jgroups>
         <stack name="jdbc-ping-tcp" extends="tcp">
             <JDBC_PING connection_driver="org.postgresql.Driver"
+                connection_username="${env.KC_DB_USERNAME}" connection_password="${env.KC_DB_PASSWORD}"
                 connection_url="${env.KC_DB_URL}"
                 initialize_sql="CREATE TABLE IF NOT EXISTS JGROUPSPING (own_addr varchar(200) NOT NULL, cluster_name varchar(200) NOT NULL, ping_data BYTEA, constraint PK_JGROUPSPING PRIMARY KEY (own_addr, cluster_name));"
                 info_writer_sleep_time="500"
