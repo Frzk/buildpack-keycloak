@@ -138,7 +138,9 @@ start "Setting up Clustering"
 
 do_start "Copying clustering configuration file"
 
-if ! cp "files/ispn.xml" "keycloak/conf/cache-ispn.xml" 2>/dev/null; then
+if ! cp "${buildpack_dir}/files/cache-ispn.xml" "${build_dir}/keycloak/conf/" \
+	2>/dev/null
+then
 	do_fail
 	err "Unable to copy cache-ispn.xml file. Aborting."
 	failure
