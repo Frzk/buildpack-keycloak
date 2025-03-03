@@ -138,7 +138,7 @@ start "Setting up Clustering"
 
 do_start "Copying clustering configuration file"
 
-if ! cp "${buildpack_dir}/files/cache-ispn.xml" "${build_dir}/keycloak/conf/" \
+if ! cp "${buildpack_dir}/files/cache-ispn.xml" "${keycloak_dir}/conf/" \
 	2>/dev/null
 then
 	do_fail
@@ -172,7 +172,7 @@ start "Building environment"
 
 mkdir --parents "${HOME}/.profile.d"
 
-if ! cp "${buildpack_dir/profile.d/050-keycloak.sh" "${HOME}/.profile.d/" \
+if ! cp "${buildpack_dir}/profile.d/050-keycloak.sh" "${HOME}/.profile.d/" \
 	2>/dev/null
 then
 	do_fail
