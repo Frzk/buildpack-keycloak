@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # usage: bin/compile <build_dir> <cache_dir> <env_dir>
 
+
 set -o errexit
 set -o pipefail
 
 if [ -n "${BUILDPACK_DEBUG}" ]; then
-    set -o xtrace
+	set -o xtrace
 fi
 
 build_dir="${1:-}"
@@ -22,8 +23,6 @@ readonly base_dir
 readonly buildpack_dir
 readonly tmp_dir
 
-
-
 source "${buildpack_dir}/bin/fn.sh"
 
 
@@ -37,7 +36,7 @@ readonly jvm_url="https://buildpacks-repository.s3.eu-central-1.amazonaws.com/jv
 
 mkdir -p /tmp/jvm-common
 curl --silent --location "${jvm_url}" \
-    | tar xJm -C /tmp/jvm-common --strip-components=1
+	| tar xJm -C /tmp/jvm-common --strip-components=1
 
 source /tmp/jvm-common/bin/util
 source /tmp/jvm-common/bin/java
@@ -52,18 +51,16 @@ success
 
 start "Installing Keycloak"
 
-readonly keycloak_db_engine="${KC_DB:-postgres}"
-
 # Version
 keycloak_default_version="$( cat "${buildpack_dir}/VERSION" )"
 keycloak_version="${KEYCLOAK_VERSION:-"${keycloak_default_version}"}"
 
 if [ -z "${keycloak_version}" ]; then
-    err "Could not retrieve Keycloak version."
-    info "Please use the KEYCLOAK_VERSION environment variable to specify the version to use."
-    failure
+	err "Could not retrieve Keycloak version."
+	info "Please use the KEYCLOAK_VERSION environment variable to specify the version to use."
+	failure
 else
-    info "Using Keycloak version ${keycloak_version}."
+	info "Using Keycloak version ${keycloak_version}."
 fi
 
 readonly keycloak_dir="${build_dir}/keycloak"
@@ -75,65 +72,79 @@ readonly checksum_url="${package_url}.sha1"
 mkdir -p "${tmp_dir}"
 
 if [ -d "${keycloak_dir}" ]; then
-    err "Keycloak is already installed in ${keycloak_dir}."
-    failure
+	err "Keycloak is already installed in ${keycloak_dir}."
+	failure
 else
-    if [ -f "${cache_file}" ]
-    then
-        info "Found file in cache."
-        do_start "Checking validity"
+	if [ -f "${cache_file}" ]; then
+		info "Found file in cache."
+		do_start "Checking validity"
 
-        if check_cached_file "${cache_file}" "${checksum_url}"
-        then
-            do_finish
-        else
-            do_fail
-            err "File in cache is invalid, it has been removed."
-        fi
-    fi
+		if check_cached_file "${cache_file}" "${checksum_url}"; then
+			do_finish
+		else
+			do_fail
+			err "File in cache is invalid, it has been removed."
+		fi
+	fi
 
-    if [ ! -f "${cache_file}" ]
-    then
-        do_start "Downloading"
+	if [ ! -f "${cache_file}" ]; then
+		do_start "Downloading"
 
-        if  download "${package_url}" "${checksum_url}" "${cache_file}"
-        then
-            do_finish
-        else
-            do_fail
-            err "An error occured while downloading. Aborting."
-            failure
-        fi
-    fi
+		if  download "${package_url}" "${checksum_url}" "${cache_file}"; then
+			do_finish
+		else
+			do_fail
+			err "An error occured while downloading. Aborting."
+			failure
+		fi
+	fi
 
 
-    do_start "Extracting"
+	do_start "Extracting"
 
-    if tar \
-        --extract \
-        --file="${cache_file}" \
-        --directory="${tmp_dir}" \
-        2>/dev/null
-    then
-        do_finish
-    else
-        do_fail
-        err "An error occured while extracting the archive. Aborting."
-        failure
-    fi
+	if ! tar --extract \
+		--file="${cache_file}" \
+		--directory="${tmp_dir}" \
+		2>/dev/null
+	then
+		do_fail
+		err "An error occured while extracting the archive. Aborting."
+		failure
+	fi
 
-    do_start "Installing"
+	do_finish
 
-    if mv "${tmp_dir}/keycloak-${keycloak_version}" "${keycloak_dir}" \
-        2>/dev/null
-    then
-        do_finish
-    else
-        do_fail
-        err "An error occured while installing the files. Aborting."
-        failure
-    fi
+
+	do_start "Installing"
+
+	if ! mv "${tmp_dir}/keycloak-${keycloak_version}" "${keycloak_dir}" \
+		2>/dev/null
+	then
+		do_fail
+		err "An error occured while installing the files. Aborting."
+		failure
+	fi
+
+	do_finish
 fi
+
+success
+
+
+# * * *
+
+
+start "Setting up Clustering"
+
+do_start "Copying clustering configuration file"
+
+if ! cp "files/ispn.xml" "keycloak/conf/cache-ispn.xml" 2>/dev/null; then
+	do_fail
+	err "Unable to copy cache-ispn.xml file. Aborting."
+	failure
+fi
+
+do_finish
 
 success
 
@@ -157,27 +168,16 @@ success
 
 start "Building environment"
 
+mkdir --parents "${HOME}/.profile.d"
 
-host="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "@" -f2 | cut -d ":" -f1 )"
-port="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d ":" -f4 | cut -d "/" -f1 )"
-username="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "/" -f3 | cut -d ":" -f1 )"
-password="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "@" -f1 | cut -d ":" -f3 )"
-database="$( echo "${SCALINGO_POSTGRESQL_URL}" | cut -d "?" -f1 | cut -d "/" -f4 )"
-db_url="jdbc:postgresql://${host}:${port}/${database}"
+if ! cp "${buildpack_dir/profile.d/050-keycloak.sh" "${HOME}/.profile.d/" \
+	2>/dev/null
+then
+	do_fail
+	failure
+fi
 
-readonly host
-readonly port
-readonly username
-readonly password
-readonly database
-readonly db_url
-
-cat << EOF > "${build_dir}/.profile.d/050-keycloak.sh"
-export KC_DB="${keycloak_db_engine}"
-export KC_DB_USERNAME="${username}"
-export KC_DB_PASSWORD="${password}"
-export KC_DB_URL="${db_url}"
-EOF
+do_finish
 
 success
 
@@ -187,16 +187,16 @@ success
 
 start "Building optimized Keycloak image"
 
-if "${keycloak_dir}"/bin/kc.sh build \
-    --db="${keycloak_db_engine}" \
-    --transaction-xa-enabled="false" \
-    2>/dev/null
+if ! "${keycloak_dir}"/bin/kc.sh build \
+	--db="${KC_DB}" \
+	--transaction-xa-enabled="false" \
+	2>/dev/null
 then
-    do_finish
-else
-    do_fail
-    failure
+	do_fail
+	failure
 fi
+
+do_finish
 
 success
 
@@ -208,12 +208,11 @@ start "Cleaning up"
 
 do_start "Removing temporary files"
 
-if rm -Rf "${tmp_dir}"
-then
-    do_finish
-else
-    do_fail
-    failure
+if ! rm -Rf "${tmp_dir}" 2>/dev/null; then
+	do_fail
+	failure
 fi
+
+do_finish
 
 success
