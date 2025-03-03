@@ -170,6 +170,8 @@ success
 
 start "Building environment"
 
+do_start "Saving environment"
+
 mkdir --parents "${HOME}/.profile.d"
 
 if ! cp "${buildpack_dir}/profile.d/050-keycloak.sh" "${HOME}/.profile.d/" \
@@ -181,6 +183,12 @@ fi
 
 do_finish
 
+do_start "Loading environment"
+
+source "${HOME}/.profile.d/050-keycloak.sh"
+
+do_finish
+
 success
 
 
@@ -189,10 +197,7 @@ success
 
 start "Building optimized Keycloak image"
 
-if ! "${keycloak_dir}"/bin/kc.sh build \
-	--db="${KC_DB}" \
-	--transaction-xa-enabled="false" \
-	2>/dev/null
+if ! "${keycloak_dir}"/bin/kc.sh build 2>/dev/null
 then
 	do_fail
 	failure
