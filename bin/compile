@@ -186,6 +186,7 @@ do_finish
 do_start "Loading environment"
 
 source "${HOME}/.profile.d/050-keycloak.sh"
+printenv
 
 do_finish
 
