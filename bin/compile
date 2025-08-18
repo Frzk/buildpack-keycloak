@@ -16,13 +16,6 @@ base_dir="$( cd -P "$( dirname "${0}" )" && pwd )"
 buildpack_dir="$( readlink -f "${base_dir}/.." )"
 tmp_dir="$( mktemp --tmpdir="/tmp" --directory "keycloak-XXXX" )"
 
-readonly build_dir
-readonly cache_dir
-readonly env_dir
-readonly base_dir
-readonly buildpack_dir
-readonly tmp_dir
-
 source "${buildpack_dir}/bin/fn.sh"
 
 
@@ -31,8 +24,8 @@ source "${buildpack_dir}/bin/fn.sh"
 
 start "Installing JVM"
 
-readonly jvm_version="${JAVA_VERSION:-17}"
-readonly jvm_url="https://buildpacks-repository.s3.eu-central-1.amazonaws.com/jvm-common.tar.xz"
+jvm_version="${JAVA_VERSION:-17}"
+jvm_url="https://buildpacks-repository.s3.eu-central-1.amazonaws.com/jvm-common.tar.xz"
 
 mkdir -p /tmp/jvm-common
 curl --silent --location "${jvm_url}" \
