@@ -33,7 +33,7 @@ curl --silent --location "${jvm_url}" \
 
 source /tmp/jvm-common/bin/java
 
-install_openjdk "${BUILD_DIR}" "${BUILDPACK_DIR}"
+install_openjdk "${build_dir}" "${buildpack_dir}"
 
 success
 
