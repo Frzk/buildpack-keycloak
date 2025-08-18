@@ -36,12 +36,11 @@ readonly jvm_url="https://buildpacks-repository.s3.eu-central-1.amazonaws.com/jv
 
 mkdir -p /tmp/jvm-common
 curl --silent --location "${jvm_url}" \
-	| tar xJm -C /tmp/jvm-common --strip-components=1
+	| tar --extract --xz --diretcory=/tmp/jvm-common --strip-components=1
 
-source /tmp/jvm-common/bin/util
 source /tmp/jvm-common/bin/java
 
-install_java "${build_dir}" "${jvm_version}"
+install_openjdk "${BUILD_DIR}" "${BUILDPACK_DIR}"
 
 success
 
