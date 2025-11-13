@@ -35,13 +35,16 @@ readonly jvm_version="${JAVA_VERSION:-17}"
 readonly jvm_url="https://buildpacks-repository.s3.eu-central-1.amazonaws.com/jvm-common.tar.xz"
 
 mkdir -p /tmp/jvm-common
-curl --silent --location "${jvm_url}" \
-	| tar xJm -C /tmp/jvm-common --strip-components=1
+curl --silent --fail --retry 3 --retry-connrefused --connect-timeout 5 \
+	--location "${jvm_url}" \
+	| tar xzm -C /tmp/jvm-common --strip-components=1
 
-source /tmp/jvm-common/bin/util
-source /tmp/jvm-common/bin/java
+# Source in a sub-shell to keep environment clean
+( source /tmp/jvm-common/bin/java \
+	&& install_openjdk "${build_dir}" "${buildpack_dir}" )
 
-install_java "${build_dir}" "${jvm_version}"
+# Source the export file to get environment variables like JAVA_HOME and PATH:
+source "${buildpack_dir}/export"
 
 success
 
