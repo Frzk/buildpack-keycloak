@@ -37,7 +37,7 @@ readonly jvm_url="https://buildpacks-repository.s3.eu-central-1.amazonaws.com/jv
 mkdir -p /tmp/jvm-common
 curl --silent --fail --retry 3 --retry-connrefused --connect-timeout 5 \
 	--location "${jvm_url}" \
-	| tar xzm -C /tmp/jvm-common --strip-components=1
+	| tar --extract --xz --touch --directory=/tmp/jvm-common --strip-components=1
 
 # Source in a sub-shell to keep environment clean
 ( source /tmp/jvm-common/bin/java \
