@@ -194,7 +194,7 @@ success
 
 start "Building optimized Keycloak image"
 
-if ! "${keycloak_dir}"/bin/kc.sh build 2>/dev/null
+if ! "${keycloak_dir}"/bin/kc.sh build > /dev/null 2>&1
 then
 	do_fail
 	failure
