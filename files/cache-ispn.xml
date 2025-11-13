@@ -22,7 +22,7 @@
     xmlns="urn:infinispan:config:11.0">
 
     <jgroups>
-        <stack name="jdbc-ping" extends="tcp">
+        <stack name="jdbc-ping-tcp" extends="tcp">
             <JDBC_PING connection_driver="org.postgresql.Driver"
                 connection_username="${env.KC_DB_USERNAME}"
                 connection_password="${env.KC_DB_PASSWORD}"
@@ -36,7 +36,7 @@
     </jgroups>
 
     <cache-container name="keycloak" statistics="true">
-        <transport cluster="kc" node-name="${env.CONTAINER}" stack="jdbc-ping" lock-timeout="60000"/>
+        <transport cluster="cluster" node-name="${env.CONTAINER}" stack="jdbc-ping-tcp" lock-timeout="60000"/>
         <local-cache name="realms">
             <encoding>
                 <key media-type="application/x-java-object"/>
