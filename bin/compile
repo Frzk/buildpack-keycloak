@@ -24,8 +24,8 @@ source "${buildpack_dir}/bin/fn.sh"
 
 start "Installing JVM"
 
-readonly jvm_version="${JAVA_VERSION:-17}"
-readonly jvm_url="https://buildpacks-repository.s3.eu-central-1.amazonaws.com/jvm-common.tar.xz"
+jvm_version="${JAVA_VERSION:-17}"
+jvm_url="https://buildpacks-repository.s3.eu-central-1.amazonaws.com/jvm-common.tar.xz"
 
 mkdir -p /tmp/jvm-common
 curl --silent --fail --retry 3 --retry-connrefused --connect-timeout 5 \
