@@ -16,13 +16,6 @@ base_dir="$( cd -P "$( dirname "${0}" )" && pwd )"
 buildpack_dir="$( readlink -f "${base_dir}/.." )"
 tmp_dir="$( mktemp --tmpdir="/tmp" --directory "keycloak-XXXX" )"
 
-readonly build_dir
-readonly cache_dir
-readonly env_dir
-readonly base_dir
-readonly buildpack_dir
-readonly tmp_dir
-
 source "${buildpack_dir}/bin/fn.sh"
 
 
