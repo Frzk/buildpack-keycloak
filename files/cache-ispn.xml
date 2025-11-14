@@ -22,7 +22,7 @@
     xmlns="urn:infinispan:config:11.0">
 
     <jgroups>
-        <stack name="jdbc-ping-tcp" extends="tcp" bind_addr="match-address:10.240.\*">
+        <stack name="jdbc-ping-tcp" extends="tcp">
             <JDBC_PING connection_driver="org.postgresql.Driver"
                 connection_username="${env.KC_DB_USERNAME}"
                 connection_password="${env.KC_DB_PASSWORD}"
