@@ -193,7 +193,7 @@ success
 
 start "Building optimized Keycloak image"
 
-if ! "${keycloak_dir}"/bin/kc.sh build > /dev/null 2>&1
+if ! "${keycloak_dir}"/bin/kc.sh build --health-enabled=true > /dev/null 2>&1
 then
 	do_fail
 	failure
