@@ -1,221 +1,194 @@
 #!/usr/bin/env bash
 # usage: bin/compile <build_dir> <cache_dir> <env_dir>
 
+# shellcheck source=vendor/cmnlib.sh
+source "$( readlink -f "$( dirname "${0}" )/../vendor/cmnlib.sh" )"
 
-set -o errexit
-set -o pipefail
+_CMN_DEBUG_="yes"
 
-if [ -n "${BUILDPACK_DEBUG}" ]; then
-	set -o xtrace
-fi
+cmn::main::start "${0}" "${1}" "${2}" "${3}"
 
-build_dir="${1:-}"
-cache_dir="${2:-}"
-env_dir="${3:-}"
-base_dir="$( cd -P "$( dirname "${0}" )" && pwd )"
-buildpack_dir="$( readlink -f "${base_dir}/.." )"
-tmp_dir="$( mktemp --tmpdir="/tmp" --directory "keycloak-XXXX" )"
+# -----------------------------------------------------------------------------
 
-source "${buildpack_dir}/bin/fn.sh"
+# shellcheck source=VERSIONS
+source "${buildpack_dir:?}/VERSIONS"
+version="${KEYCLOAK_VERSION:-"${KEYCLOAK_DEFAULT_VERSION}"}"
 
+archive="keycloak-${version}.tar.gz"
 
-# * * *
+archive_url="https://github.com/keycloak/keycloak/releases/download/${version}/${archive}"
+hash_url="${archive_url}.sha1"
 
+cache_file="${cache_dir:?}/${archive}"
+hash_file="${tmp_dir:?}/${archive}.sha1"
 
-start "Installing JVM"
+keycloak_dir="${build_dir:?}/keycloak"
 
-jvm_version="${JAVA_VERSION:-17}"
-jvm_url="https://buildpacks-repository.s3.eu-central-1.amazonaws.com/jvm-common.tar.xz"
+# -----------------------------------------------------------------------------
 
-mkdir -p /tmp/jvm-common
-curl --silent --fail --retry 3 --retry-connrefused --connect-timeout 5 \
-	--location "${jvm_url}" \
-	| tar --extract --xz --touch --directory=/tmp/jvm-common --strip-components=1
+cmn::step::start "Installing JVM"
 
-# Source in a sub-shell to keep environment clean
-( source /tmp/jvm-common/bin/java \
-	&& install_openjdk "${build_dir}" "${buildpack_dir}" )
+cmn::bp::run "${build_dir:?}" "${cache_dir:?}" "${env_dir:?}" "${tmp_dir:?}" \
+	"https://github.com/Scalingo/buildpack-jvm-common"
 
+#jvm_version="${JAVA_VERSION:-21}"
+#jvm_url="https://buildpacks-repository.s3.eu-central-1.amazonaws.com/jvm.tgz"
+
+#cmn::task::start "Downloading JVM buildpack"
+#cmn::file::download "${jvm_url}" "${tmp_dir:?}/jvm.tgz" \
+#	cmn::task::fail "${?}" <<-EOM
+#		Unable to download the JVM buildpack.
+#		Unable to install the required JVM.
+#		Aborting.
+#	EOM
+#cmn::task::finish
+
+#cmn::task::start "Extracting JVM buildpack"
+#mkdir --parents "${tmp_dir:?}/jvm"
+#tar --extract --gzip --touch --directory="${tmp_dir:?}/jvm" \
+#	--strip-components=1 --file="${tmp_dir:?}/jvm.tgz"
+#cmn::task::finish
+
+#cmn::task::start "Installing JVM"
+## Source in a sub-shell to keep environment clean
+#( source "${tmp_dir:?}/jvm/bin/java" \
+#	&& install_openjdk "${build_dir:?}" "${buildpack_dir:?}" )
+#
 # Source the export file to get environment variables like JAVA_HOME and PATH:
-source "${buildpack_dir}/export"
+#source "${buildpack_dir:?}/export"
+#cmn::task::finish
 
-success
+# -----------------------------------------------------------------------------
 
+cmn::step::start "Installing Keycloak"
 
-# * * *
+# We always check archive validity using a freshly downloaded checksum to
+# detect/prevent immutability issues (i.e. cases where upstream replaces the
+# archive at the same URL/same version number)
+# So let's download the checksum:
+cmn::task::start "Downloading checksum"
+cmn::file::download "${hash_url}" "${hash_file}" \
+	|| cmn::main::fail "${?}" <<-EOM
+		Unable to download checksum file.
+		Aborting.
+	EOM
+cmn::task::finish
 
+if [[ ! -f "${cache_file}" ]]; then
+	# The archive doesn't exist in the cache.
 
-start "Installing Keycloak"
+	# Remove any existing cached archive, as they are probably for another
+	# version:
+	cmn::task::start "Cleaning cache"
+	rm --recursive --force "${cache_dir:?}"/keycloak*.tar.gz
+	cmn::task::finish
 
-# Version
-keycloak_default_version="$( cat "${buildpack_dir}/VERSION" )"
-keycloak_version="${KEYCLOAK_VERSION:-"${keycloak_default_version}"}"
-
-if [ -z "${keycloak_version}" ]; then
-	err "Could not retrieve Keycloak version."
-	info "Please use the KEYCLOAK_VERSION environment variable to specify the version to use."
-	failure
+	# Download appropriate version:
+	cmn::task::start "Downloading archive"
+	cmn::file::download "${archive_url}" "${cache_file}" \
+		|| cmn::main::fail "${?}" <<-EOM
+			Unable to download Keycloak archive.
+			Aborting.
+		EOM
+	cmn::task::finish
 else
-	info "Using Keycloak version ${keycloak_version}."
+	# The archive is in cache.
+
+	cmn::output::info "Found matching file in cache."
 fi
 
-readonly keycloak_dir="${build_dir}/keycloak"
-readonly dist="keycloak-${keycloak_version}.tar.gz"
-readonly cache_file="${cache_dir}/${dist}"
-readonly package_url="https://github.com/keycloak/keycloak/releases/download/${keycloak_version}/${dist}"
-readonly checksum_url="${package_url}.sha1"
+# From this point, we have an archive in cache.
 
-mkdir -p "${tmp_dir}"
+# We always check the archive validity to prevent cache corruption and other
+# issues.
+cmn::task::start "Checking archive validity"
+cmn::file::validate_checksum "${cache_file}" "${hash_file}" \
+	|| {
+		# File in cache does not seem valid,
+		# remove it so a future run can be successful
+		rm --force "${cache_file}"
 
-if [ -d "${keycloak_dir}" ]; then
-	err "Keycloak is already installed in ${keycloak_dir}."
-	failure
-else
-	if [ -f "${cache_file}" ]; then
-		info "Found file in cache."
-		do_start "Checking validity"
+		cmn::main::fail 2 <<-EOM
+			The checksum for the archive file in the cache doesn't match what's
+			expected.
 
-		if check_cached_file "${cache_file}" "${checksum_url}"; then
-			do_finish
-		else
-			do_fail
-			err "File in cache is invalid, it has been removed."
-		fi
-	fi
+			Here are the most common causes:
 
-	if [ ! -f "${cache_file}" ]; then
-		do_start "Downloading"
+			- The archive file in the cache is corrupt. This can
+			  unfortunately happen, but has no strong consequences. Triggering
+			  a new deployment should fix the issue.
 
-		if  download "${package_url}" "${checksum_url}" "${cache_file}"; then
-			do_finish
-		else
-			do_fail
-			err "An error occured while downloading. Aborting."
-			failure
-		fi
-	fi
+			- A networking issue occurred, causing the downloaded checksum
+			  file to be incomplete or corrupt. Triggering a new deployment
+			  should force the platform to download the archive and the
+			  checksum again, and the deployment should pass.
 
+			- Upstream replaced the archive and its checksum, resulting in the
+			  same version number having a different checksum.
+			  This could mean a malicious threat tampered the source archive
+			  and its checksum.
+			  Please check upstream for a potential explanation and make sure
+			  it's still trustable.
 
-	do_start "Extracting"
+			In all cases, the cached archive has been removed to force a new
+			download during the next deployment attempt.
 
-	if ! tar --extract \
-		--file="${cache_file}" \
-		--directory="${tmp_dir}" \
-		2>/dev/null
-	then
-		do_fail
-		err "An error occured while extracting the archive. Aborting."
-		failure
-	fi
+			Aborting.
+		EOM
+	}
+cmn::task::finish
 
-	do_finish
+# From this point we have a valid file in cache.
 
+cmn::task::start "Extracting"
+mkdir --parents "${keycloak_dir}"
+tar --extract --file="${cache_file}" --directory="${keycloak_dir}" \
+	--strip-components=1
+cmn::task::finish
 
-	do_start "Installing"
+# -----------------------------------------------------------------------------
 
-	if ! mv "${tmp_dir}/keycloak-${keycloak_version}" "${keycloak_dir}" \
-		2>/dev/null
-	then
-		do_fail
-		err "An error occured while installing the files. Aborting."
-		failure
-	fi
+cmn::step::start "Configuring"
 
-	do_finish
-fi
+cmn::task::start "Setting up clustering"
+cp "${buildpack_dir:?}/vendor/cache-ispn.xml" "${keycloak_dir}/conf/"
+cmn::task::finish
 
-success
+# -----------------------------------------------------------------------------
 
+cmn::step::start "Building Environment"
 
-# * * *
+mkdir --parents "${build_dir:?}/.profile.d"
 
+cmn::task::start "Setting up environment"
+cp "${buildpack_dir:?}/vendor/profile.d/050-keycloak.sh" \
+	"${build_dir:?}/.profile.d/"
+cmn::task::finish
 
-start "Setting up Clustering"
+cmn::task::start "Loading environment"
+source "${build_dir:?}/.profile.d/050-keycloak.sh"
+cmn::task::finish
 
-do_start "Copying clustering configuration file"
+# -----------------------------------------------------------------------------
 
-if ! cp "${buildpack_dir}/files/cache-ispn.xml" "${keycloak_dir}/conf/" \
-	2>/dev/null
-then
-	do_fail
-	err "Unable to copy cache-ispn.xml file. Aborting."
-	failure
-fi
+cmn::step::start "Building optimized Keycloak image"
 
-do_finish
+cmn::task::start "Compiling"
+"${keycloak_dir}/bin/kc.sh" build > /dev/null 2>&1 \
+	|| cmn::main::fail "${?}" <<-EOM
+		Unable to build optimized Keycloak image.
+		Aborting.
+	EOM
+cmn::task::finish
 
-success
+# -----------------------------------------------------------------------------
 
+cmn::step::start "Cleaning up"
 
-# * * *
-
-
-# start "Installing Keycloak providers"
-# success
-
-
-# * * *
+cmn::task::start "Removing temporary files"
+# We really don't want this to cause a failure:
+rm --recursive --force "${tmp_dir:?}" >/dev/null 2>&1 || true
+cmn::task::finish
 
 
-# start "Installing Keycloak templates"
-# success
-
-
-# * * *
-
-
-start "Building environment"
-
-do_start "Saving environment"
-
-mkdir --parents "${HOME}/.profile.d"
-
-if ! cp "${buildpack_dir}/profile.d/050-keycloak.sh" "${HOME}/.profile.d/" \
-	2>/dev/null
-then
-	do_fail
-	failure
-fi
-
-do_finish
-
-do_start "Loading environment"
-
-source "${HOME}/.profile.d/050-keycloak.sh"
-
-do_finish
-
-success
-
-
-# * * *
-
-
-start "Building optimized Keycloak image"
-
-if ! "${keycloak_dir}"/bin/kc.sh build > /dev/null 2>&1
-then
-	do_fail
-	failure
-fi
-
-do_finish
-
-success
-
-
-# * * *
-
-
-start "Cleaning up"
-
-do_start "Removing temporary files"
-
-if ! rm -Rf "${tmp_dir}" 2>/dev/null; then
-	do_fail
-	failure
-fi
-
-do_finish
-
-success
+cmn::main::finish
